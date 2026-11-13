@@ -35,6 +35,9 @@ import numpy as np
 export_dir = "/content/captioner_export"
 os.makedirs(export_dir, exist_ok=True)
 
+# Ensure the MobileNet encoder is built and included in the checkpoint.
+_ = mobilenet(tf.zeros((1, 224, 224, 3), dtype=tf.float32))
+
 # Build the model graph with image-feature input and a start token.
 start_tokens = word_to_index([["[START]"]])
 _ = model((tf.zeros((1, 7, 7, 576)), start_tokens), training=False)
