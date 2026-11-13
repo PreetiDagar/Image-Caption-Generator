@@ -156,6 +156,8 @@ def load_captioner():
         weights=None,
     )
     encoder.trainable = False
+    # Build the encoder variables before restoring the saved checkpoint.
+    encoder(tf.zeros((1, 224, 224, 3), dtype=tf.float32))
 
     output_layer = TokenOutput(len(vocabulary))
     output_layer.bias = output_bias
@@ -168,11 +170,14 @@ def load_captioner():
     dummy_tokens = tf.constant([[start_id]], dtype=tf.int64)
     captioner((dummy_image, dummy_tokens), training=False)
     captioner.load_weights(str(WEIGHTS))
+    index_to_word = tf.keras.layers.StringLookup(
+        mask_token="", vocabulary=vocabulary, invert=True
+    )
 
-    return captioner, encoder, vocabulary, captioner.word_to_index
+    return captioner, encoder, vocabulary, captioner.word_to_index, index_to_word
 
 
-def generate_caption(image, captioner, encoder, vocabulary, word_to_index):
+def generate_caption(image, captioner, encoder, vocabulary, word_to_index, index_to_word):
     image = image.convert("RGB").resize((224, 224))
     pixels = np.asarray(image, dtype=np.float32)[None, ...]
     image_tensor = tf.convert_to_tensor(pixels)
@@ -190,7 +195,7 @@ def generate_caption(image, captioner, encoder, vocabulary, word_to_index):
             break
         if next_id <= 1 or next_id >= len(vocabulary):
             break
-        word = vocabulary[next_id]
+        word = index_to_word(tf.constant(next_id)).numpy().decode("utf-8")
         if word not in ("", "[UNK]", "[START]", "[END]"):
             generated.append(word)
         tokens = tf.concat(
@@ -254,10 +259,10 @@ with right:
     )
     if generate and uploaded:
         try:
-            captioner, encoder, vocabulary, word_to_index = load_captioner()
+            captioner, encoder, vocabulary, word_to_index, index_to_word = load_captioner()
             with st.spinner("Analysing image and generating caption..."):
                 result = generate_caption(
-                    image, captioner, encoder, vocabulary, word_to_index
+                    image, captioner, encoder, vocabulary, word_to_index, index_to_word
                 )
             if result:
                 st.markdown("**Generated caption**")
