@@ -1,90 +1,92 @@
 # Image Caption Generator
 
-An applied deep-learning and computer-vision project that generates natural-language descriptions for images.
+A deep-learning image captioning project built with TensorFlow/Keras. The original notebook uses a pretrained **MobileNetV3Small** image feature extractor and a **two-layer Transformer decoder** to generate English captions.
 
-The goal is to connect visual understanding with language generation: given an image, the system identifies its context and produces a relevant English caption.
+## Project architecture
 
-## Project Overview
+1. **Image encoder:** MobileNetV3Small (ImageNet-pretrained in the notebook; frozen during captioner training).
+2. **Text processing:** Keras TextVectorization with a vocabulary capped at 5,000 tokens.
+3. **Caption decoder:** Two Transformer decoder layers with causal self-attention, cross-attention and feed-forward blocks.
+4. **Generation:** Autoregressive greedy decoding, with a maximum sequence length of 50 tokens.
 
-Image captioning combines two tasks:
+## Dataset and training
 
-1. **Visual understanding** — extracting meaningful information from an input image.
-2. **Language generation** — converting the visual information into a readable caption.
+The notebook selects the Flickr8k dataset. It preprocesses images to 224 × 224 RGB, extracts image features, tokenizes captions and trains with Adam (learning rate 1e-4), masked sparse categorical cross-entropy and masked accuracy. Early stopping uses patience 5 and restores the best weights.
 
-This project explores how deep-learning techniques can be used to automatically describe image content.
+The notebook's saved output includes training logs through epoch 35, where the displayed validation masked accuracy is approximately 0.3851. This is a notebook training-log observation, not an independently reproduced evaluation result.
 
-## Objectives
+## Run the original notebook
 
-- Explore image understanding using computer vision.
-- Generate relevant English descriptions for images.
-- Understand the workflow behind image-to-text systems.
-- Demonstrate a practical application of deep learning.
+[Open the Google Colab notebook](https://colab.research.google.com/drive/1OL8Wmik5nfes1NrF2gzabtl-wthCDk3H?usp=sharing)
 
-## Project Workflow
+Run the notebook through model training before exporting the trained artifacts.
 
-1. Provide an image as input.
-2. Preprocess the image as required by the trained model.
-3. Extract visual features.
-4. Generate a caption using the project's trained caption-generation approach.
-5. Display the generated text alongside the input image.
+## Export the trained model
 
-> The exact model architecture, preprocessing pipeline, dataset, and training configuration should be documented from the original notebook before they are stated as implementation facts.
+Add and run this cell **after training and after the model has been built** in the notebook:
 
-## Notebook
+```python
+import json
+import os
+import shutil
+import zipfile
+import numpy as np
 
-The original project notebook is available on Google Colab:
+export_dir = "/content/captioner_export"
+os.makedirs(export_dir, exist_ok=True)
 
-[Open Image Caption Generator notebook](https://colab.research.google.com/drive/1OL8Wmik5nfes1NrF2gzabtl-wthCDk3H?usp=sharing)
+# Build the model graph with image-feature input and a start token.
+start_tokens = word_to_index([["[START]"]])
+_ = model((tf.zeros((1, 7, 7, 576)), start_tokens), training=False)
 
-## Repository Structure
+model.save_weights(os.path.join(export_dir, "captioner.weights.h5"))
+
+with open(os.path.join(export_dir, "vocabulary.json"), "w") as f:
+    json.dump(tokenizer.get_vocabulary(), f)
+
+np.save(os.path.join(export_dir, "output_bias.npy"), output_layer.bias)
+
+archive = shutil.make_archive("/content/captioner_export", "zip", export_dir)
+
+from google.colab import files
+files.download(archive)
+```
+
+The exported ZIP should contain exactly the three files listed above. Extract them into the app's `artifacts/` directory. Keep these model binaries out of Git if they are large; use a model-artifact host or the deployment platform's supported storage for production.
+
+## Run the Streamlit application locally
+
+After the model files are in `artifacts/`:
+
+```bash
+python -m venv .venv
+# Activate the environment, then:
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+## Deploy
+
+The application is designed for Streamlit Community Cloud. Push the source code to GitHub, connect the repository in Streamlit Community Cloud, set the app entry point to `app.py`, and provide the three model artifacts through a suitable model-artifact hosting method. Do not publish private data or credentials.
+
+**Deployment status:** Application source scaffold is prepared. A live inference deployment is pending export and verification of the trained model artifacts.
+
+## Repository structure
 
 ```text
 Image-Caption-Generator/
+├── app.py
+├── requirements.txt
 ├── README.md
 ├── Google Colab Link
-├── app.py                 # Planned: interactive demo
-├── requirements.txt       # Planned: application dependencies
-└── assets/
-    └── examples/          # Planned: sample inputs and outputs
+└── artifacts/
+    └── README.md
 ```
 
-The application and supporting files are planned additions; they are not currently included in the repository.
+## Limitations and responsible use
 
-## Running the Notebook
-
-1. Open the Google Colab notebook using the link above.
-2. Review and run the notebook cells in sequence.
-3. Follow the notebook's dataset and model setup instructions.
-4. Provide an image using the notebook's input method.
-5. Review the generated caption.
-
-The notebook's actual dependency and dataset requirements should be followed; they are not assumed here.
-
-## Potential Applications
-
-- Accessibility support through descriptions of visual content.
-- Image organization and searchable photo libraries.
-- Automatic image descriptions for digital content.
-- Supporting content workflows for large image collections.
-
-## Deployment Roadmap
-
-A lightweight web application is planned so visitors can upload an image and view its generated caption.
-
-**Current status:** Notebook-based project. A public interactive demo is not yet deployed.
-
-Before deployment, the notebook's model, preprocessing, dependencies, and inference code need to be verified and packaged for the application.
-
-## Future Improvements
-
-- Add an interactive image-upload interface.
-- Evaluate caption quality on unseen images.
-- Document model architecture and evaluation metrics.
-- Add representative input/output examples.
-- Deploy a reproducible public demo.
+The original notebook notes that Flickr8k is a relatively small dataset and that captions for images outside its training distribution may be inaccurate. Generated captions should be treated as model predictions, not verified facts.
 
 ## Author
 
-**Preeti Dagar**
-
-[GitHub Profile](https://github.com/PreetiDagar) · [Portfolio](https://meek-mermaid-723af2.netlify.app/) · [Email](mailto:dagarp72@gmail.com)
+**Preeti Dagar** · [GitHub](https://github.com/PreetiDagar) · [Portfolio](https://meek-mermaid-723af2.netlify.app/) · [Email](mailto:dagarp72@gmail.com)
